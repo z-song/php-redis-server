@@ -1,0 +1,17 @@
+{
+    "name": "encore/php-redis-server",
+    "description": "A redis server writtern in php.",
+    "license": "mit",
+    "authors": [
+        {
+            "name": "z-song",
+            "email": "zosong@126.com"
+        }
+    ],
+    "require": {},
+    "autoload": {
+        "psr-4": {
+            "Encore\\RedisServer\\": "src/"
+        }
+    }
+}
