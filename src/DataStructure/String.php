@@ -53,6 +53,10 @@ class String
 
     protected function foo($length, $start, $end)
     {
+        if (is_null($start) && is_null($end)) {
+            return [0, $length];
+        }
+
         if ($start < 0 && $end < 0 && $start > $end) {;
             return '';
         }
@@ -137,25 +141,35 @@ class String
     {
         list(,$hex) = unpack('H*', $str ?: $this->value);
 
-        var_dump(base_convert($hex, 16, 2));
+        $hexArr = str_split($hex, 4);
 
-        return base_convert($hex, 16, 2);
+        $bin = '';
+        foreach ($hexArr as $hex) {
+            $bin .= base_convert($hex, 16, 2);
+        }
+
+        return $bin;
     }
 
     protected function bin2str($bin)
     {
-        $hex = base_convert($bin, 2, 16);
+        $bins = str_split($bin, 8);
+
+        $hex = '';
+        foreach ($bins as $bin) {
+            $hex .= base_convert($bin, 2, 16);
+        }
 
         return pack('H*', $hex);
     }
 
     public function incrementBy($increment = 1)
     {
-        if (is_int($this->value)) {
-            $this->value += $increment;
+        if (! is_int($this->value)) {
+            throw new Exception('ERR value is not an integer or out of range');
         }
 
-        throw new Exception('ERR value is not an integer or out of range');
+        $this->value += $increment;
     }
 
     public function decrementBy($decrement = 1)
