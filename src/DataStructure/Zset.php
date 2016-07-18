@@ -1,6 +1,6 @@
 <?php
 
-class Zset
+class Zset extends Set
 {
 
 }
