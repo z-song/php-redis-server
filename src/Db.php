@@ -73,4 +73,32 @@ class Db
         unset($this->dict[$key]);
         unset($this->expires[$key]);
     }
+
+    public function type($key)
+    {
+        if (! $this->exists($key)) {
+            return 'none';
+        }
+
+        return $this->dict[$key]->type();
+    }
+
+    public function keys()
+    {
+        return array_keys($this->dict);
+    }
+
+    public function rename($key, $newKey)
+    {
+        if ($key === $newKey) {
+            throw new \Exception('source and destination objects are the same');
+        }
+
+        if (! $this->exists($key)) {
+            throw new \Exception('no such key');
+        }
+
+        $this->dict[$newKey] = $this->dict[$key];
+        unset($this->dict[$key]);
+    }
 }

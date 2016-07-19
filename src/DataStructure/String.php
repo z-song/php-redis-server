@@ -57,14 +57,25 @@ class String
             return [0, $length];
         }
 
-        if ($start < 0 && $end < 0 && $start > $end) {;
+        if ($start < 0 && $end < 0 && $start > $end) {
+            ;
             return '';
         }
-        if ($start < 0) $start = $length+$start;
-        if ($end < 0) $end = $length+$end;
-        if ($start < 0) $start = 0;
-        if ($end < 0) $end = 0;
-        if ($end >= $length) $end = $length-1;
+        if ($start < 0) {
+            $start = $length+$start;
+        }
+        if ($end < 0) {
+            $end = $length+$end;
+        }
+        if ($start < 0) {
+            $start = 0;
+        }
+        if ($end < 0) {
+            $end = 0;
+        }
+        if ($end >= $length) {
+            $end = $length-1;
+        }
 
         if ($start > $end || $length == 0) {
             return [0, 0];

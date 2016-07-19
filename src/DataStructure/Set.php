@@ -1,5 +1,7 @@
 <?php
 
+namespace Encore\RedisServer\DataStructure;
+
 class Set
 {
     protected $value = [];
@@ -30,7 +32,7 @@ class Set
         return $count;
     }
 
-    public function count()
+    public function card()
     {
         return count($this->value);
     }
@@ -92,7 +94,7 @@ class Set
 
         $count = 0;
         foreach ($members as $member) {
-            if($this->isMember($member)) {
+            if ($this->isMember($member)) {
                 unset($this->value[$member]);
                 $count++;
             }

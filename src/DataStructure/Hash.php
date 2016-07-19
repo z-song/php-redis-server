@@ -1,5 +1,7 @@
 <?php
 
+namespace Encore\RedisServer\DataStructure;
+
 class Hash
 {
     protected $value = [];
