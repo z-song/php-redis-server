@@ -1,11 +1,4 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: song
- * Email: zousong@yiban.cn
- * Date: 16/7/20
- * Time: 下午4:40
- */
 
 namespace Encore\RedisServer\Helper;
 

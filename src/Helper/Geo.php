@@ -1,17 +1,52 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: song
- * Email: zousong@yiban.cn
- * Date: 16/7/20
- * Time: 下午4:36
- */
 
 namespace Encore\RedisServer\Helper;
 
 class Geo
 {
     const EARTH_RADIUS_IN_METERS = 6372797.560856;
+
+    private static $bits = [16, 8, 4, 2, 1];
+
+    private static $base32 = '0123456789bcdefghjkmnpqrstuvwxyz';
+
+    private static $neighbors = [
+        'north' => [
+            'even' => 'p0r21436x8zb9dcf5h7kjnmqesgutwvy',
+            'odd'  => 'bc01fg45238967deuvhjyznpkmstqrwx'
+        ],
+        'south' => [
+            'even' => '14365h7k9dcfesgujnmqp0r2twvyx8zb',
+            'odd'  => '238967debc01fg45kmstqrwxuvhjyznp'
+        ],
+        'east'  => [
+            'even' => 'bc01fg45238967deuvhjyznpkmstqrwx',
+            'odd'  => 'p0r21436x8zb9dcf5h7kjnmqesgutwvy'
+        ],
+        'west'  => [
+            'even' => '238967debc01fg45kmstqrwxuvhjyznp',
+            'odd'  => '14365h7k9dcfesgujnmqp0r2twvyx8zb'
+        ],
+    ];
+
+    private static $borders = [
+        'north' => [
+            'even' => 'prxz',
+            'odd'  => 'bcfguvyz'
+        ],
+        'south' => [
+            'even' => '028b',
+            'odd'  => '0145hjnp'
+        ],
+        'east'  => [
+            'even' => 'bcfguvyz',
+            'odd'  => 'prxz'
+        ],
+        'west'  => [
+            'even' => '0145hjnp',
+            'odd'  => '028b'
+        ],
+    ];
 
     /**
      * Get distance of two coordinates.
@@ -66,10 +101,6 @@ class Geo
         ];
     }
 
-    private static $bits = [16, 8, 4, 2, 1];
-
-    private static $base32 = '0123456789bcdefghjkmnpqrstuvwxyz';
-
     /**
      * Geohash encode
      *
@@ -77,75 +108,79 @@ class Geo
      * @param   float $longitude
      * @return  string
      */
-    public static function encode($latitude, $longitude)
+    public static function encode($latitude, $longitude, $getHash = true)
     {
-        $isEven = true;
-        $bit = 0;
-        $ch = 0;
+        $even = true;
+        $bit = $ch = 0;
         $precision = min((max(strlen(strstr($latitude, '.')), strlen(strstr($longitude, '.'))) - 1) * 2, 12);
-        $geohash = '';
+        $geoHash = '';
+        $bits = 0;
 
-        $lat = [-90.0, 90.0];
-        $lon = [-180.0, 180.0];
+        $latRange = [-90.0, 90.0];
+        $lonRange = [-180.0, 180.0];
 
-        while(strlen($geohash) < $precision){
-            if($isEven){
-                $mid = array_sum($lon) / 2;
+        while(strlen($geoHash) < $precision){
+            if($even){
+                $mid = array_sum($lonRange) / 2;
                 if($longitude > $mid){
                     $ch |= self::$bits[$bit];
-                    $lon[0] = $mid;
+                    $lonRange[0] = $mid;
                 } else {
-                    $lon[1] = $mid;
+                    $lonRange[1] = $mid;
                 }
             } else {
-                $mid = array_sum($lat) / 2;
+                $mid = array_sum($latRange) / 2;
                 if($latitude > $mid){
                     $ch |= self::$bits[$bit];
-                    $lat[0] = $mid;
+                    $latRange[0] = $mid;
                 } else {
-                    $lat[1] = $mid;
+                    $latRange[1] = $mid;
                 }
             }
-            $isEven = !$isEven;
+            $even = !$even;
             if($bit < 4){
                 $bit++;
             } else {
-                $geohash .= self::$base32{$ch};
-                $bit = 0;
-                $ch = 0;
+
+                $geoHash .= self::$base32{$ch};
+
+                $bits = ($bits == 0) ? $ch : ($bits << 5) + $ch;
+
+                $bit = $ch = 0;
             }
         }
 
-        return $geohash;
+        return $getHash ? $geoHash : $bits;
     }
 
     /**
      * Geohash decode
-     * @param   string $geohash
+     * @param   string $geoHash
      * @return  array
      */
-    public static function decode($geohash)
+    public static function decode($geoHash)
     {
-        $isEven = true;
+        $even = true;
         $lat = [-90.0, 90.0];
         $lon = [-180.0, 180.0];
         $lat_err = 90.0;
         $lon_err = 180.0;
-        for($i = 0; $i < strlen($geohash); $i++){
-            $c = $geohash{$i};
+        for($i = 0; $i < strlen($geoHash); $i++){
+            $c = $geoHash{$i};
             $cd = stripos(self::$base32, $c);
             for($j = 0; $j < 5; $j++){
                 $mask = self::$bits[$j];
-                if($isEven){
+                if($even){
                     $lon_err /= 2;
                     self::refineInterval($lon, $cd, $mask);
                 } else {
                     $lat_err /= 2;
                     self::refineInterval($lat, $cd, $mask);
                 }
-                $isEven = !$isEven;
+                $even = !$even;
             }
         }
+
         $lat[2] = ($lat[0] + $lat[1]) / 2;
         $lon[2] = ($lon[0] + $lon[1]) / 2;
 
@@ -157,70 +192,65 @@ class Geo
         $interval[($cd & $mask)? 0: 1] = ($interval[0] + $interval[1]) / 2;
     }
 
-    public static function hash2bin($hash)
+    public static function hash2dec($hash)
     {
         $base32 = str_split(static::$base32);
         $base32 = array_flip($base32);
 
-        $bits = 0;
+        $dec = 0;
         for ($i = 0; $i < strlen($hash); $i++) {
             $index = (int)$base32[$hash{$i}];
-
-
-            $bits = ($bits == 0) ? $index : ($bits << 5) + $index;
+            $dec = ($dec == 0) ? $index : ($dec << 5) + $index;
         }
-var_dump(decbin($bits));
-        return $bits;
+
+        return $dec;
     }
 
-    private static $neighbors = [
-        'north' => ['even' => 'p0r21436x8zb9dcf5h7kjnmqesgutwvy'],
-        'south' => ['even' => '14365h7k9dcfesgujnmqp0r2twvyx8zb'],
-        'east'  => ['even' => 'bc01fg45238967deuvhjyznpkmstqrwx'],
-        'west'  => ['even' => '238967debc01fg45kmstqrwxuvhjyznp'],
-    ];
+    public static function dec2hash($dec)
+    {
+        $buf = '';
+        for ($i = 0; $i < 12; $i++) {
+            $idx = ($dec >> (60-(($i+1)*5))) & 0x1f;
+            $buf .= static::$base32[$idx];
+        }
 
-    private static $borders = [
-        'north' => ['even' => 'prxz'],
-        'south' => ['even' => '028b'],
-        'east'  => ['even' => 'bcfguvyz'],
-        'west'  => ['even' => '0145hjnp'],
-    ];
+        return $buf;
+    }
+
+    public static function fixBits($dec, $count = 60)
+    {
+        for ($i = 0; $i < $count; $i++) {
+            if ($dec >> ($count-($i+1)) & 1) {
+                break;
+            }
+        }
+
+        return $dec << $i;
+    }
 
     public static function neighbors($hash)
     {
-        static::$neighbors['south']['odd'] = static::$neighbors['west']['even'];
-        static::$neighbors['north']['odd'] = static::$neighbors['east']['even'];
-        static::$neighbors['west']['odd']  = static::$neighbors['south']['even'];
-        static::$neighbors['east']['odd']  = static::$neighbors['north']['even'];
-
-        static::$borders['south']['odd']   = static::$borders['west']['even'];
-        static::$borders['north']['odd']   = static::$borders['east']['even'];
-        static::$borders['west']['odd']    = static::$borders['south']['even'];
-        static::$borders['east']['odd']    = static::$borders['north']['even'];
-
-        $neighbors['north']      = static::calculateAdjacent($hash, 'north');
-        $neighbors['south']      = static::calculateAdjacent($hash, 'south');
-        $neighbors['east']       = static::calculateAdjacent($hash, 'east');
-        $neighbors['west']       = static::calculateAdjacent($hash, 'west');
-
-        $neighbors['northwest']  = static::calculateAdjacent($neighbors['west'], 'north');
-        $neighbors['northeast']  = static::calculateAdjacent($neighbors['east'], 'north');
-        $neighbors['southeast']  = static::calculateAdjacent($neighbors['east'], 'south');
-        $neighbors['southwest']  = static::calculateAdjacent($neighbors['west'], 'south');
+        $neighbors['north']      = static::adjacent($hash, 'north');
+        $neighbors['south']      = static::adjacent($hash, 'south');
+        $neighbors['east']       = static::adjacent($hash, 'east');
+        $neighbors['west']       = static::adjacent($hash, 'west');
+        $neighbors['northwest']  = static::adjacent($neighbors['west'], 'north');
+        $neighbors['northeast']  = static::adjacent($neighbors['east'], 'north');
+        $neighbors['southeast']  = static::adjacent($neighbors['east'], 'south');
+        $neighbors['southwest']  = static::adjacent($neighbors['west'], 'south');
 
         return $neighbors;
     }
 
-    private static function calculateAdjacent($hash, $dir)
+    private static function adjacent($hash, $dir)
     {
-        $hash = strtolower($hash);
+        $hash    = strtolower($hash);
         $lastChr = $hash[strlen($hash) - 1];
-        $type = (strlen($hash) % 2) ? 'odd' : 'even';
-        $base = substr($hash, 0, strlen($hash) - 1);
+        $type    = (strlen($hash) % 2) ? 'odd' : 'even';
+        $base    = substr($hash, 0, strlen($hash) - 1);
 
         if (strpos(static::$borders[$dir][$type], $lastChr) !== false) {
-            $base = static::calculateAdjacent($base, $dir);
+            $base = static::adjacent($base, $dir);
         }
 
         return $base . static::$base32[strpos(static::$neighbors[$dir][$type], $lastChr)];
